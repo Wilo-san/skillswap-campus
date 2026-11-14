@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+
+# base de donnees locale generee par le seed
+server/data/
+*.tmp
+
+# environnement
+.env
+.env.local
+.env.*.local
+
+# logs et divers
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.idea/
+.vscode/
+coverage/
