@@ -15,7 +15,7 @@
     "start": "npm --workspace server run start",
     "seed": "npm --workspace server run seed",
     "reset": "npm --workspace server run reset",
-    "test": "node server/test/regles.test.mjs"
+    "test": "node server/test/regles.test.mjs && node server/test/persistance.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
