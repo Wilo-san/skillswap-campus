@@ -1,8 +1,8 @@
 {
   "name": "skillswap-campus",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Plateforme collaborative ou les etudiants echangent leurs competences avec un systeme de credits.",
+  "description": "Banque de temps entre etudiants : un credit = une heure. Projet GL & Modelisation UML, EST Beni Mellal.",
   "workspaces": [
     "server",
     "client"
@@ -14,7 +14,8 @@
     "build": "npm --workspace client run build",
     "start": "npm --workspace server run start",
     "seed": "npm --workspace server run seed",
-    "reset": "npm --workspace server run reset"
+    "reset": "npm --workspace server run reset",
+    "test": "node server/test/regles.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

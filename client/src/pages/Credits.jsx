@@ -1,84 +1,65 @@
 import { useEffect, useState } from 'react'
-import { Alert, Spinner, StatCard } from '../components/ui.jsx'
+import { Alert, EmptyState, Spinner, StatCard } from '../components/ui.jsx'
 import { apiGet } from '../lib/api.js'
-import { useAuth } from '../lib/auth.jsx'
-import { formatDateHeure } from '../lib/format.js'
-
-const TYPES = {
-  bonus: { label: 'Bonus', classes: 'text-emerald-700' },
-  credit: { label: 'Gain', classes: 'text-emerald-700' },
-  debit: { label: 'Depense', classes: 'text-rose-600' },
-  remboursement: { label: 'Remboursement', classes: 'text-brand-700' },
-}
+import { formatDateHeure, TYPES_MOUVEMENT } from '../lib/format.js'
 
 export default function Credits() {
-  const { refresh } = useAuth()
   const [data, setData] = useState(null)
   const [erreur, setErreur] = useState('')
 
   useEffect(() => {
-    apiGet('/credits')
-      .then(setData)
-      .catch((err) => setErreur(err.message))
-    refresh()
+    apiGet('/credits').then(setData).catch((e) => setErreur(e.message))
   }, [])
 
   if (erreur) return <Alert tone="error">{erreur}</Alert>
   if (!data) return <Spinner />
 
-  const gains = data.mouvements.filter((m) => m.quantite > 0).reduce((t, m) => t + m.quantite, 0)
-  const depenses = data.mouvements.filter((m) => m.quantite < 0).reduce((t, m) => t + Math.abs(m.quantite), 0)
-
   return (
-    <div className="space-y-5 fade-in">
+    <div className="space-y-6 fade-in">
       <header>
         <h1 className="text-2xl">Mes crédits</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Chaque session donnée rapporte des crédits, chaque session reçue en coûte.
-        </p>
+        <p className="mt-1 text-sm text-ink-500">Un crédit correspond à une heure. Animer une séance en rapporte, en suivre une en coûte.</p>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Solde actuel" value={`${data.solde} cr.`} hint="Disponible immédiatement" tone="brand" />
-        <StatCard label="Total gagné" value={`${gains} cr.`} hint="Sessions données et bonus" tone="accent" />
-        <StatCard label="Total dépensé" value={`${depenses} cr.`} hint="Sessions reçues" tone="amber" />
-      </section>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Disponible" value={`${data.disponible} crédit${data.disponible > 1 ? 's' : ''}`} hint="Utilisable pour une nouvelle séance" tone="brand" />
+        <StatCard label="Bloqué" value={`${data.bloque} crédit${data.bloque > 1 ? 's' : ''}`} hint="Réservé aux séances acceptées" tone="amber" />
+        <StatCard label="Total" value={`${data.disponible + data.bloque}`} hint="Disponible + bloqué" tone="ink" />
+      </div>
 
       <section className="card overflow-hidden">
         <div className="border-b border-ink-100 px-5 py-4">
-          <h2 className="text-base font-semibold">Historique des mouvements</h2>
+          <h2 className="text-lg">Historique des mouvements</h2>
         </div>
-        <ul className="divide-y divide-ink-100">
-          {data.mouvements.length === 0 && (
-            <li className="px-5 py-6 text-sm text-ink-500">Aucun mouvement pour le moment.</li>
-          )}
-          {data.mouvements.map((m) => {
-            const type = TYPES[m.type] || { label: m.type, classes: 'text-ink-600' }
-            return (
-              <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-800">{m.description}</p>
-                  <p className="text-xs text-ink-400">
-                    {type.label} · {formatDateHeure(m.date)}
-                  </p>
-                </div>
-                <span className={`font-display text-base ${m.quantite >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {m.quantite >= 0 ? '+' : ''}
-                  {m.quantite} cr.
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-
-      <section className="card p-5">
-        <h2 className="text-base font-semibold">Comment gagner des crédits</h2>
-        <ul className="mt-3 space-y-2 text-sm text-ink-600">
-          <li>· Publie une offre et donne une session : tu reçois le coût en crédits de l’offre.</li>
-          <li>· Chaque nouvel inscrit démarre avec 5 crédits de bienvenue.</li>
-          <li>· Une annulation ou un litige résolu par remboursement te rend tes crédits.</li>
-        </ul>
+        {data.mouvements.length === 0 ? (
+          <EmptyState title="Aucun mouvement" description="Tes crédits apparaîtront ici." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-ink-50 text-xs uppercase tracking-wide text-ink-500">
+                <tr>
+                  <th className="px-5 py-3">Date</th>
+                  <th className="px-5 py-3">Type</th>
+                  <th className="px-5 py-3">Séance concernée</th>
+                  <th className="px-5 py-3 text-right">Quantité</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {data.mouvements.map((m) => {
+                  const t = TYPES_MOUVEMENT[m.type] || { label: m.type, signe: '', classes: '' }
+                  return (
+                    <tr key={m.id}>
+                      <td className="whitespace-nowrap px-5 py-3 text-ink-500">{formatDateHeure(m.date)}</td>
+                      <td className="px-5 py-3"><span className={`font-semibold ${t.classes}`}>{t.label}</span></td>
+                      <td className="px-5 py-3 text-ink-600">{m.seance || m.description}</td>
+                      <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold ${t.classes}`}>{t.signe}{m.quantite}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   )

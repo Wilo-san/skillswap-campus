@@ -71,15 +71,14 @@ export default function AuthPage() {
             Tu sais faire quelque chose. Quelqu’un d’autre sait faire le reste.
           </h1>
           <p className="mt-4 max-w-md text-sm text-ink-200">
-            Publie une compétence que tu maîtrises, réserve un créneau avec un autre étudiant et paie en crédits.
-            Chaque heure donnée te permet d’apprendre à ton tour.
+            Une banque de temps entre étudiants : un crédit équivaut à une heure. Anime une séance, gagne des crédits, puis utilise-les pour apprendre à ton tour. Deux crédits offerts à l’inscription.
           </p>
         </div>
         <ul className="relative mt-10 space-y-3 text-sm text-ink-200">
           {[
-            'Des offres filtrées par filière, niveau et mode',
-            'Double confirmation avant chaque session',
-            'Un solde de crédits transparent et tracé',
+            'Recherche par compétence, catégorie, niveau, date et mode',
+            'Crédits bloqués à l’acceptation, transférés après double confirmation',
+            'Évaluations, signalements et arbitrage par un administrateur',
           ].map((item) => (
             <li key={item} className="flex items-center gap-3">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/20 text-xs text-emerald-300">
@@ -89,7 +88,7 @@ export default function AuthPage() {
             </li>
           ))}
         </ul>
-        <p className="relative text-xs text-ink-400">Projet etudiant · Base44 · 2026</p>
+        <p className="relative text-xs text-ink-400">EST Béni Mellal · DUT GI S3 · GL & Modélisation UML</p>
       </div>
 
       <div className="flex items-center justify-center bg-ink-50 px-5 py-10">

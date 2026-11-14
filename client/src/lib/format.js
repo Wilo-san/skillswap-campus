@@ -31,17 +31,21 @@ export function formatRelatif(iso) {
 
 export const STATUTS = {
   en_attente: { label: 'En attente', classes: 'bg-amber-100 text-amber-800' },
-  confirmee: { label: 'Confirmée', classes: 'bg-emerald-100 text-emerald-800' },
-  annulee: { label: 'Annulée', classes: 'bg-ink-100 text-ink-600' },
+  acceptee: { label: 'Acceptée', classes: 'bg-emerald-100 text-emerald-800' },
   refusee: { label: 'Refusée', classes: 'bg-rose-100 text-rose-700' },
-  litige: { label: 'Litige', classes: 'bg-rose-100 text-rose-700' },
-  litige_resolu: { label: 'Litige résolu', classes: 'bg-ink-100 text-ink-700' },
+  annulee: { label: 'Annulée', classes: 'bg-ink-100 text-ink-600' },
+  realisee: { label: 'Réalisée', classes: 'bg-brand-100 text-brand-800' },
+  en_litige: { label: 'En litige', classes: 'bg-rose-100 text-rose-700' },
+  brouillon: { label: 'Brouillon', classes: 'bg-ink-100 text-ink-600' },
   publiee: { label: 'Publiée', classes: 'bg-emerald-100 text-emerald-800' },
   archivee: { label: 'Archivée', classes: 'bg-ink-100 text-ink-600' },
-  suspendue: { label: 'Suspendue', classes: 'bg-amber-100 text-amber-800' },
+  masquee: { label: 'Masquée', classes: 'bg-rose-100 text-rose-700' },
   libre: { label: 'Libre', classes: 'bg-emerald-100 text-emerald-800' },
-  demande: { label: 'Demande en cours', classes: 'bg-amber-100 text-amber-800' },
   reserve: { label: 'Réservé', classes: 'bg-brand-100 text-brand-800' },
+  ouvert: { label: 'Ouvert', classes: 'bg-rose-100 text-rose-700' },
+  regle: { label: 'Réglé', classes: 'bg-ink-100 text-ink-700' },
+  actif: { label: 'Actif', classes: 'bg-emerald-100 text-emerald-800' },
+  desactive: { label: 'Désactivé', classes: 'bg-rose-100 text-rose-700' },
 }
 
 export const NIVEAUX = {
@@ -52,12 +56,22 @@ export const NIVEAUX = {
 
 export const MODES = {
   presentiel: 'Présentiel',
-  en_ligne: 'En ligne',
+  distance: 'À distance',
 }
 
-export function toInputDateTime(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+export const TYPES_MOUVEMENT = {
+  bienvenue: { label: 'Bienvenue', signe: '+', classes: 'text-emerald-700' },
+  blocage: { label: 'Blocage', signe: '−', classes: 'text-amber-700' },
+  liberation: { label: 'Libération', signe: '+', classes: 'text-emerald-700' },
+  transfert_emis: { label: 'Transfert émis', signe: '−', classes: 'text-rose-700' },
+  transfert_recu: { label: 'Transfert reçu', signe: '+', classes: 'text-emerald-700' },
+}
+
+export function etoiles(note) {
+  if (note == null) return '—'
+  return `${note.toFixed(1)} / 5`
+}
+
+export function formatCredits(n) {
+  return `${n} crédit${Math.abs(n) > 1 ? 's' : ''}`
 }

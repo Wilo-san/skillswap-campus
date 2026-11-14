@@ -31,6 +31,9 @@ export function userFromRequest(req) {
 export function requireAuth(req, res, next) {
   const user = userFromRequest(req)
   if (!user) return res.status(401).json({ error: 'Authentification requise.' })
+  if ((user.statut || 'actif') !== 'actif') {
+    return res.status(403).json({ error: 'Ce compte est desactive.' })
+  }
   req.user = user
   req.me = publicUser(user)
   next()

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Alert, Badge, Spinner, StatCard } from '../components/ui.jsx'
 import { apiGet } from '../lib/api.js'
 import { useAuth } from '../lib/auth.jsx'
-import { formatDateHeure, formatRelatif, MODES } from '../lib/format.js'
+import { formatDateHeure, formatHeure } from '../lib/format.js'
 
 export default function Dashboard() {
   const { user, refresh } = useAuth()
@@ -11,127 +11,90 @@ export default function Dashboard() {
   const [erreur, setErreur] = useState('')
 
   useEffect(() => {
-    apiGet('/dashboard')
-      .then(setData)
-      .catch((err) => setErreur(err.message))
+    apiGet('/dashboard').then(setData).catch((err) => setErreur(err.message))
     refresh()
   }, [])
 
   if (erreur) return <Alert tone="error">{erreur}</Alert>
   if (!data) return <Spinner />
 
-  const { stats, prochaines, activite } = data
-  const prenom = user?.prenom || ''
+  const { stats, prochaines, recentes } = data
+  const aTraiter = stats.demandes_recues + stats.a_confirmer
 
   return (
     <div className="space-y-6 fade-in">
       <section className="card overflow-hidden bg-gradient-to-br from-ink-900 to-brand-800 p-6 text-white">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-200">Bonjour {prenom}</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-brand-200">Bonjour {user?.prenom}</p>
             <h1 className="mt-2 max-w-xl font-display text-2xl leading-snug sm:text-3xl">
-              {stats.demandes_recues > 0
-                ? `${stats.demandes_recues} demande${stats.demandes_recues > 1 ? 's' : ''} attend${stats.demandes_recues > 1 ? 'ent' : ''} ta confirmation.`
+              {aTraiter > 0
+                ? `${aTraiter} action${aTraiter > 1 ? 's' : ''} t’attend${aTraiter > 1 ? 'ent' : ''}.`
                 : 'Que veux-tu apprendre aujourd’hui ?'}
             </h1>
             <p className="mt-2 max-w-lg text-sm text-ink-200">
-              {stats.sessions_donnees + stats.sessions_recues > 0
-                ? `Tu as déjà participé à ${stats.sessions_donnees + stats.sessions_recues} session${stats.sessions_donnees + stats.sessions_recues > 1 ? 's' : ''} sur le campus. Continue sur ta lancée.`
-                : 'Publie ta première offre ou réserve un créneau pour démarrer tes échanges.'}
+              {stats.demandes_recues > 0 && `${stats.demandes_recues} demande(s) à accepter ou refuser. `}
+              {stats.a_confirmer > 0 && `${stats.a_confirmer} séance(s) à confirmer. `}
+              {aTraiter === 0 && 'Un crédit équivaut à une heure : anime une séance pour en gagner.'}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link to="/marche" className="btn bg-white text-ink-900 hover:bg-ink-100">
-              Explorer le marché
-            </Link>
-            <Link to="/mes-offres" className="btn border border-white/30 text-white hover:bg-white/10">
-              Publier une offre
-            </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/marche" className="btn bg-white text-ink-900 hover:bg-ink-100">Explorer le marché</Link>
+            <Link to="/mes-offres" className="btn border border-white/30 text-white hover:bg-white/10">Mes offres</Link>
           </div>
         </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Solde" value={`${data.solde} crédits`} hint="Utilisables pour réserver" tone="brand" />
-        <StatCard label="Offres publiées" value={stats.offres_publiees} hint="Compétences que tu proposes" tone="accent" />
-        <StatCard label="Demandes reçues" value={stats.demandes_recues} hint="À confirmer par toi" tone="amber" />
-        <StatCard label="Sessions données" value={stats.sessions_donnees} hint={`${stats.sessions_recues} recues`} tone="ink" />
+        <StatCard label="Disponible" value={`${data.solde} crédit${data.solde > 1 ? 's' : ''}`} hint={`${data.bloque} bloqué${data.bloque > 1 ? 's' : ''}`} tone="brand" />
+        <StatCard label="Demandes reçues" value={stats.demandes_recues} hint="À accepter ou refuser" tone="amber" />
+        <StatCard label="Séances animées" value={stats.sessions_donnees} hint={`${stats.sessions_recues} suivies`} tone="accent" />
+        <StatCard label="Ma note" value={data.note_moyenne != null ? `★ ${data.note_moyenne}` : '—'} hint={`${data.nb_evaluations} évaluation${data.nb_evaluations > 1 ? 's' : ''}`} tone="ink" />
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Prochaines sessions</h2>
-            <Link to="/reservations" className="text-xs font-semibold text-brand-600 hover:underline">
-              Tout voir
-            </Link>
+            <h2 className="text-lg">Prochaines séances</h2>
+            <Link to="/planning" className="link text-sm">Planning</Link>
           </div>
-          <div className="mt-4 space-y-3">
-            {prochaines.length === 0 && (
-              <p className="rounded-xl bg-ink-50 px-4 py-6 text-center text-sm text-ink-500">
-                Aucune session confirmée pour le moment. Réserve un créneau depuis le marché des compétences.
-              </p>
-            )}
-            {prochaines.map((resa) => (
-              <div key={resa.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink-900">{resa.offre_titre}</p>
-                  <p className="text-xs text-ink-500">
-                    {formatDateHeure(resa.debut)} · {resa.lieu}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="chip">{resa.role === 'intervenant' ? 'Tu enseignes' : 'Tu apprends'}</span>
-                  <span className="chip">avec {resa.role === 'intervenant' ? resa.beneficiaire_nom : resa.intervenant_nom}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {prochaines.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-500">Aucune séance acceptée pour le moment.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-ink-100">
+              {prochaines.map((s) => (
+                <li key={s.id} className="py-3">
+                  <p className="text-sm font-semibold text-ink-900">{s.offre_titre}</p>
+                  <p className="text-xs text-ink-500">{formatDateHeure(s.debut)} → {formatHeure(s.fin)} · avec {s.autre_nom}</p>
+                  <span className="mt-1 inline-block chip">{s.role === 'intervenant' ? 'Tu animes' : 'Tu apprends'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="card p-5">
-          <h2 className="text-base font-semibold">Activité récente</h2>
-          <div className="mt-4 space-y-4">
-            {activite.length === 0 && <p className="text-sm text-ink-500">Rien pour l’instant.</p>}
-            {activite.map((resa) => (
-              <div key={resa.id} className="flex items-start gap-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-400" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-800">{resa.offre_titre}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Badge statut={resa.statut} />
-                    <span className="text-xs text-ink-400">{formatRelatif(resa.created_at)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg">Activité récente</h2>
+            <Link to="/reservations" className="link text-sm">Tout voir</Link>
           </div>
+          {recentes.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-500">Rien pour l’instant.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-ink-100">
+              {recentes.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink-900">{r.offre_titre}</p>
+                    <p className="text-xs text-ink-500">{r.role === 'intervenant' ? 'avec' : 'chez'} {r.autre_nom}</p>
+                  </div>
+                  <Badge statut={r.statut} />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
-
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Comment fonctionne l’échange</h2>
-            <p className="mt-1 text-sm text-ink-500">Trois étapes, un solde toujours lisible.</p>
-          </div>
-          <Link to="/credits" className="btn-ghost btn-sm">
-            Voir mes crédits
-          </Link>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {[
-            { titre: '1. Publie ou choisis', texte: 'Une compétence que tu maîtrises, ou un créneau qui t’intéresse.' },
-            { titre: '2. Confirmez ensemble', texte: 'Toi et l’intervenant validez la session. Les crédits sont bloqués.' },
-            { titre: '3. Echangez', texte: 'La session a lieu, les crédits passent à l’intervenant. Puis à ton tour d’apprendre.' },
-          ].map((etape) => (
-            <div key={etape.titre} className="rounded-xl bg-ink-50 p-4">
-              <p className="text-sm font-semibold text-ink-900">{etape.titre}</p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-500">{etape.texte}</p>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   )
 }

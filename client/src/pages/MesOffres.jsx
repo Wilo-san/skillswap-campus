@@ -2,69 +2,66 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, Badge, EmptyState, Modal, Spinner } from '../components/ui.jsx'
 import { apiDelete, apiGet, apiPost, apiPut } from '../lib/api.js'
-import { formatDateHeure, MODES, NIVEAUX, toInputDateTime } from '../lib/format.js'
+import { formatDateHeure, formatHeure, MODES, NIVEAUX } from '../lib/format.js'
 
 const VIDE = {
   titre: '',
   categorie: '',
   competence: '',
   description: '',
-  niveau: 'intermediaire',
-  duree: '1h',
+  niveau: 'debutant',
+  duree_heures: 1,
   mode: 'presentiel',
-  cout_credits: 1,
 }
 
 export default function MesOffres() {
   const [offres, setOffres] = useState(null)
   const [categories, setCategories] = useState([])
+  const [demandes, setDemandes] = useState([])
   const [erreur, setErreur] = useState('')
+  const [succes, setSucces] = useState('')
   const [modale, setModale] = useState(null)
   const [form, setForm] = useState(VIDE)
   const [envoi, setEnvoi] = useState(false)
-  const [creneauForm, setCreneauForm] = useState({ debut: '', fin: '', lieu: '' })
+  const [creneauForm, setCreneauForm] = useState({ debut: '', lieu: '' })
   const [offreCreneau, setOffreCreneau] = useState(null)
 
   function charger() {
-    Promise.all([apiGet('/offres?intervenant=me&statut=tous'), apiGet('/categories')])
-      .then(([o, c]) => {
+    Promise.all([apiGet('/offres?intervenant=me&statut=tous'), apiGet('/categories'), apiGet('/reservations?role=recues')])
+      .then(([o, c, r]) => {
         setOffres(o.offres)
         setCategories(c.categories)
+        setDemandes(r.reservations.filter((x) => x.statut === 'en_attente'))
       })
       .catch((err) => setErreur(err.message))
   }
+  useEffect(charger, [])
 
-  useEffect(() => {
-    charger()
-  }, [])
+  const update = (champ) => (e) => setForm((f) => ({ ...f, [champ]: e.target.value }))
 
   function ouvrirCreation() {
+    setErreur('')
     setForm({ ...VIDE, categorie: categories[0]?.nom || '' })
-    setModale('creation')
+    setModale({ type: 'creation' })
   }
 
-  function ouvrirEdition(offre) {
-    setForm({
-      titre: offre.titre,
-      categorie: offre.categorie,
-      competence: offre.competence,
-      description: offre.description,
-      niveau: offre.niveau,
-      duree: offre.duree,
-      mode: offre.mode,
-      cout_credits: offre.cout_credits,
-    })
-    setModale({ type: 'edition', id: offre.id })
+  function ouvrirEdition(o) {
+    setErreur('')
+    setForm({ titre: o.titre, categorie: o.categorie, competence: o.competence, description: o.description, niveau: o.niveau, duree_heures: o.duree_heures, mode: o.mode })
+    setModale({ type: 'edition', id: o.id })
   }
 
-  async function enregistrer(e) {
+  async function enregistrer(e, publier = false) {
     e.preventDefault()
+    if (envoi) return
     setErreur('')
     setEnvoi(true)
     try {
-      if (modale?.type === 'edition') await apiPut(`/offres/${modale.id}`, form)
-      else await apiPost('/offres', form)
+      const corps = { ...form, duree_heures: Number(form.duree_heures) }
+      if (modale?.type === 'edition') await apiPut(`/offres/${modale.id}`, corps)
+      else await apiPost('/offres', { ...corps, statut: publier ? 'publiee' : 'brouillon' })
       setModale(null)
+      setSucces(modale?.type === 'edition' ? 'Offre modifiée.' : publier ? 'Offre publiée.' : 'Brouillon enregistré. Ajoute un créneau puis publie-le.')
       charger()
     } catch (err) {
       setErreur(err.message)
@@ -73,20 +70,21 @@ export default function MesOffres() {
     }
   }
 
-  async function archiver(offre) {
-    const statut = offre.statut === 'publiee' ? 'archivee' : 'publiee'
+  async function changerStatut(o, statut) {
+    setErreur('')
     try {
-      await apiPut(`/offres/${offre.id}`, { statut })
+      await apiPut(`/offres/${o.id}`, { statut })
+      setSucces(statut === 'publiee' ? 'Offre publiée.' : 'Offre archivée : les demandes en attente ont été annulées.')
       charger()
     } catch (err) {
       setErreur(err.message)
     }
   }
 
-  async function supprimer(offre) {
-    if (!window.confirm(`Supprimer definitivement « ${offre.titre} » ?`)) return
+  async function supprimer(o) {
+    if (!window.confirm(`Supprimer définitivement « ${o.titre} » ?`)) return
     try {
-      await apiDelete(`/offres/${offre.id}`)
+      await apiDelete(`/offres/${o.id}`)
       charger()
     } catch (err) {
       setErreur(err.message)
@@ -95,11 +93,12 @@ export default function MesOffres() {
 
   async function ajouterCreneau(e) {
     e.preventDefault()
+    if (envoi) return
     setErreur('')
     setEnvoi(true)
     try {
-      await apiPost(`/offres/${offreCreneau.id}/creneaux`, creneauForm)
-      setCreneauForm({ debut: '', fin: '', lieu: '' })
+      await apiPost(`/offres/${offreCreneau.id}/creneaux`, { debut: new Date(creneauForm.debut).toISOString(), lieu: creneauForm.lieu })
+      setCreneauForm({ debut: '', lieu: '' })
       setOffreCreneau(null)
       charger()
     } catch (err) {
@@ -109,9 +108,21 @@ export default function MesOffres() {
     }
   }
 
-  async function supprimerCreneau(creneau) {
+  async function supprimerCreneau(c) {
+    setErreur('')
     try {
-      await apiDelete(`/creneaux/${creneau.id}`)
+      await apiDelete(`/creneaux/${c.id}`)
+      charger()
+    } catch (err) {
+      setErreur(err.message)
+    }
+  }
+
+  async function traiter(r, action, corps = {}) {
+    setErreur('')
+    try {
+      await apiPost(`/reservations/${r.id}/${action}`, corps)
+      setSucces(action === 'accepter' ? 'Demande acceptée.' : 'Demande refusée.')
       charger()
     } catch (err) {
       setErreur(err.message)
@@ -125,304 +136,182 @@ export default function MesOffres() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl">Mes offres</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            {offres.filter((o) => o.statut === 'publiee').length} publiée(s) sur {offres.length}
-          </p>
+          <p className="mt-1 text-sm text-ink-500">Crée une offre, ajoute des créneaux, puis publie-la. Tu gagnes 1 crédit par heure animée.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={ouvrirCreation}>
-          Nouvelle offre
-        </button>
+        <button type="button" className="btn-primary" onClick={ouvrirCreation}>Nouvelle offre</button>
       </header>
 
-      {erreur && <Alert tone="error" onClose={() => setErreur('')}>{erreur}</Alert>}
+      {succes && <Alert tone="success" onClose={() => setSucces('')}>{succes}</Alert>}
+      {erreur && !modale && !offreCreneau && <Alert tone="error" onClose={() => setErreur('')}>{erreur}</Alert>}
+
+      {demandes.length > 0 && (
+        <section className="card border-amber-200 bg-amber-50/40 p-5">
+          <h2 className="text-lg">Demandes reçues à traiter ({demandes.length})</h2>
+          <ul className="mt-3 divide-y divide-amber-100">
+            {demandes.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0 text-sm">
+                  <p className="font-semibold text-ink-900">{r.offre_titre}</p>
+                  <p className="text-ink-500">{r.beneficiaire_nom} · {formatDateHeure(r.debut)}</p>
+                  {r.message && <p className="mt-1 text-xs text-ink-500">« {r.message} »</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-accent btn-sm" onClick={() => traiter(r, 'accepter')}>Accepter</button>
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => { const m = window.prompt('Motif du refus (obligatoire) :'); if (m) traiter(r, 'refuser', { motif: m }) }}>Refuser</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {offres.length === 0 ? (
         <EmptyState
-          title="Tu n’as pas encore publié de compétence"
-          description="Propose ce que tu maîtrises : une langue, un langage de programmation, une méthode. Tu gagnes des crédits à chaque session donnée."
-          action={
-            <button type="button" className="btn-primary btn-sm" onClick={ouvrirCreation}>
-              Créer ma première offre
-            </button>
-          }
+          title="Tu n’as pas encore d’offre"
+          description="Propose ce que tu maîtrises : un langage, une langue, une méthode. Tu gagnes des crédits à chaque séance animée."
+          action={<button type="button" className="btn-primary btn-sm" onClick={ouvrirCreation}>Créer ma première offre</button>}
         />
       ) : (
         <div className="space-y-4">
-          {offres.map((offre) => (
-            <article key={offre.id} className="card p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge statut={offre.statut} />
-                    <span className="chip">{offre.categorie}</span>
-                    <span className="chip">{offre.cout_credits} crédits</span>
+          {offres.map((o) => {
+            const peutPublier = o.statut !== 'publiee' && !o.masquee
+            return (
+              <article key={o.id} className="card p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge statut={o.statut} />
+                      {o.masquee && <Badge statut="masquee" />}
+                      <span className="chip">{o.categorie}</span>
+                      <span className="chip">{NIVEAUX[o.niveau]}</span>
+                      <span className="chip">{MODES[o.mode]}</span>
+                      <span className="chip">{o.duree_heures} h · {o.cout_credits} crédit{o.cout_credits > 1 ? 's' : ''}</span>
+                    </div>
+                    <h2 className="mt-2 text-base font-semibold text-ink-900">{o.titre}</h2>
+                    <p className="mt-1 text-sm text-ink-500">{o.competence}</p>
+                    {o.masquee && <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">Masquée par un administrateur : {o.motif_masquage}</p>}
                   </div>
-                  <h2 className="mt-2 text-base font-semibold text-ink-900">{offre.titre}</h2>
-                  <p className="mt-1 line-clamp-2 text-sm text-ink-500">{offre.description || 'Pas de description.'}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn-ghost btn-sm" onClick={() => setOffreCreneau(o)}>Ajouter un créneau</button>
+                    <button type="button" className="btn-ghost btn-sm" onClick={() => ouvrirEdition(o)}>Modifier</button>
+                    {peutPublier && <button type="button" className="btn-accent btn-sm" onClick={() => changerStatut(o, 'publiee')}>Publier</button>}
+                    {o.statut === 'publiee' && <button type="button" className="btn-ghost btn-sm" onClick={() => changerStatut(o, 'archivee')}>Archiver</button>}
+                    <button type="button" className="btn-danger btn-sm" onClick={() => supprimer(o)}>Supprimer</button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-ghost btn-sm" onClick={() => ouvrirEdition(offre)}>
-                    Modifier
-                  </button>
-                  <button type="button" className="btn-ghost btn-sm" onClick={() => setOffreCreneau(offre)}>
-                    Créneaux
-                  </button>
-                  <button type="button" className="btn-ghost btn-sm" onClick={() => archiver(offre)}>
-                    {offre.statut === 'publiee' ? 'Archiver' : 'Republier'}
-                  </button>
-                  <button type="button" className="btn-danger btn-sm" onClick={() => supprimer(offre)}>
-                    Supprimer
-                  </button>
-                </div>
-              </div>
 
-              <div className="mt-4 grid gap-3 border-t border-ink-100 pt-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                    Créneaux ({offre.creneaux.length})
-                  </p>
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {offre.creneaux.length === 0 && <li className="text-ink-500">Aucun créneau</li>}
-                    {offre.creneaux.map((c) => (
-                      <li key={c.id} className="flex items-center justify-between gap-2">
-                        <span className="text-ink-600">{formatDateHeure(c.debut)}</span>
-                        <span className="flex items-center gap-2">
-                          <Badge statut={c.statut} />
-                          {c.statut === 'libre' && (
-                            <button
-                              type="button"
-                              className="text-xs font-semibold text-rose-600 hover:underline"
-                              onClick={() => supprimerCreneau(c)}
-                            >
-                              Retirer
-                            </button>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mt-4 border-t border-ink-100 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Créneaux ({o.creneaux.length})</p>
+                  {o.creneaux.length === 0 ? (
+                    <p className="mt-2 text-sm text-ink-400">Aucun créneau : ajoute-en un avant de publier.</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1.5">
+                      {o.creneaux.map((c) => (
+                        <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span className="text-ink-700">{formatDateHeure(c.debut)} → {formatHeure(c.fin)} · <span className="text-ink-500">{c.lieu}</span></span>
+                          <span className="flex items-center gap-2">
+                            <Badge statut={c.statut === 'libre' ? 'libre' : 'reserve'} />
+                            {c.statut === 'libre' && <button type="button" className="text-xs font-semibold text-rose-600" onClick={() => supprimerCreneau(c)}>Retirer</button>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                <div className="space-y-1 text-xs text-ink-500">
-                  <p>Niveau : {NIVEAUX[offre.niveau]}</p>
-                  <p>Mode : {MODES[offre.mode]}</p>
-                  <p>Durée : {offre.duree}</p>
-                  <p>{offre.reservations} reservation(s) en cours</p>
-                  <Link to={`/offres/${offre.id}`} className="link inline-block">
-                    Voir la fiche publique
-                  </Link>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            )
+          })}
         </div>
       )}
 
       <Modal
-        open={modale !== null}
-        title={modale?.type === 'edition' ? "Modifier l'offre" : 'Nouvelle offre'}
-        description="Décris précisément ce que tu proposes : c’est ce que les autres étudiants verront."
+        open={Boolean(modale)}
+        title={modale?.type === 'edition' ? 'Modifier l’offre' : 'Nouvelle offre'}
+        description="La durée fixe le coût : 1 h = 1 crédit, 2 h = 2 crédits."
         onClose={() => setModale(null)}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={() => setModale(null)}>
-              Annuler
-            </button>
-            <button type="submit" form="form-offre" className="btn-primary" disabled={envoi}>
-              {envoi ? 'Enregistrement...' : 'Enregistrer'}
-            </button>
+            <button type="button" className="btn-ghost" onClick={() => setModale(null)}>Fermer</button>
+            {modale?.type === 'edition' ? (
+              <button type="submit" form="form-offre" disabled={envoi} className="btn-primary">Enregistrer</button>
+            ) : (
+              <>
+                <button type="submit" form="form-offre" disabled={envoi} className="btn-ghost">Enregistrer en brouillon</button>
+                <button type="button" disabled={envoi} className="btn-primary" onClick={(e) => enregistrer(e, true)}>Publier</button>
+              </>
+            )}
           </>
         }
       >
+        {erreur && <div className="mb-3"><Alert tone="error">{erreur}</Alert></div>}
         <form id="form-offre" onSubmit={enregistrer} className="space-y-3">
           <div>
-            <label className="label" htmlFor="titre">
-              Titre
-            </label>
-            <input
-              id="titre"
-              className="input"
-              value={form.titre}
-              onChange={(e) => setForm({ ...form, titre: e.target.value })}
-              required
-            />
+            <label className="label" htmlFor="titre">Titre</label>
+            <input id="titre" className="input" value={form.titre} onChange={update('titre')} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="competence">
-                Competence
-              </label>
-              <input
-                id="competence"
-                className="input"
-                placeholder="SQL, React, Arduino..."
-                value={form.competence}
-                onChange={(e) => setForm({ ...form, competence: e.target.value })}
-                required
-              />
+              <label className="label" htmlFor="categorie">Catégorie</label>
+              <select id="categorie" className="input" value={form.categorie} onChange={update('categorie')} required>
+                {categories.map((c) => <option key={c.id} value={c.nom}>{c.nom}</option>)}
+              </select>
             </div>
             <div>
-              <label className="label" htmlFor="categorie">
-                Catégorie
-              </label>
-              <select
-                id="categorie"
-                className="input"
-                value={form.categorie}
-                onChange={(e) => setForm({ ...form, categorie: e.target.value })}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.nom}>
-                    {c.nom}
-                  </option>
-                ))}
-                <option value="Autre">Autre</option>
-              </select>
+              <label className="label" htmlFor="competence">Compétence</label>
+              <input id="competence" className="input" value={form.competence} onChange={update('competence')} placeholder="SQL, React, UML" required />
             </div>
           </div>
           <div>
-            <label className="label" htmlFor="description">
-              Description
-            </label>
-            <textarea
-              id="description"
-              rows={4}
-              className="input"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
+            <label className="label" htmlFor="description">Description</label>
+            <textarea id="description" rows={4} className="input" value={form.description} onChange={update('description')} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <label className="label" htmlFor="niveau">
-                Niveau
-              </label>
-              <select
-                id="niveau"
-                className="input"
-                value={form.niveau}
-                onChange={(e) => setForm({ ...form, niveau: e.target.value })}
-              >
-                {Object.entries(NIVEAUX).map(([cle, label]) => (
-                  <option key={cle} value={cle}>
-                    {label}
-                  </option>
-                ))}
+              <label className="label" htmlFor="niveau">Niveau</label>
+              <select id="niveau" className="input" value={form.niveau} onChange={update('niveau')}>
+                {Object.entries(NIVEAUX).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="mode">
-                Mode
-              </label>
-              <select
-                id="mode"
-                className="input"
-                value={form.mode}
-                onChange={(e) => setForm({ ...form, mode: e.target.value })}
-              >
-                {Object.entries(MODES).map(([cle, label]) => (
-                  <option key={cle} value={cle}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label" htmlFor="duree">
-                Durée
-              </label>
-              <select
-                id="duree"
-                className="input"
-                value={form.duree}
-                onChange={(e) => setForm({ ...form, duree: e.target.value })}
-              >
-                {['30min', '1h', '1h30', '2h', '3h'].map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
+              <label className="label" htmlFor="duree">Durée</label>
+              <select id="duree" className="input" value={form.duree_heures} onChange={update('duree_heures')}>
+                <option value={1}>1 heure (1 crédit)</option>
+                <option value={2}>2 heures (2 crédits)</option>
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="cout">
-                Coût en crédits
-              </label>
-              <input
-                id="cout"
-                type="number"
-                min="1"
-                max="5"
-                className="input"
-                value={form.cout_credits}
-                onChange={(e) => setForm({ ...form, cout_credits: Number(e.target.value) })}
-              />
+              <label className="label" htmlFor="mode">Mode</label>
+              <select id="mode" className="input" value={form.mode} onChange={update('mode')}>
+                {Object.entries(MODES).map(([c, l]) => <option key={c} value={c}>{l}</option>)}
+              </select>
             </div>
           </div>
         </form>
       </Modal>
 
       <Modal
-        open={offreCreneau !== null}
+        open={Boolean(offreCreneau)}
         title="Ajouter un créneau"
-        description={offreCreneau?.titre}
+        description={offreCreneau ? `${offreCreneau.titre} · durée ${offreCreneau.duree_heures} h, l’heure de fin est calculée.` : ''}
         onClose={() => setOffreCreneau(null)}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={() => setOffreCreneau(null)}>
-              Fermer
-            </button>
-            <button type="submit" form="form-creneau" className="btn-primary" disabled={envoi}>
-              {envoi ? 'Ajout...' : 'Ajouter'}
-            </button>
+            <button type="button" className="btn-ghost" onClick={() => setOffreCreneau(null)}>Fermer</button>
+            <button type="submit" form="form-creneau" disabled={envoi} className="btn-primary">Ajouter</button>
           </>
         }
       >
+        {erreur && <div className="mb-3"><Alert tone="error">{erreur}</Alert></div>}
         <form id="form-creneau" onSubmit={ajouterCreneau} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label" htmlFor="debut">
-                Debut
-              </label>
-              <input
-                id="debut"
-                type="datetime-local"
-                className="input"
-                value={toInputDateTime(creneauForm.debut)}
-                onChange={(e) => setCreneauForm({ ...creneauForm, debut: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="label" htmlFor="fin">
-                Fin
-              </label>
-              <input
-                id="fin"
-                type="datetime-local"
-                className="input"
-                value={toInputDateTime(creneauForm.fin)}
-                onChange={(e) => setCreneauForm({ ...creneauForm, fin: e.target.value })}
-                required
-              />
-            </div>
+          <div>
+            <label className="label" htmlFor="debut">Début</label>
+            <input id="debut" type="datetime-local" className="input" value={creneauForm.debut} onChange={(e) => setCreneauForm({ ...creneauForm, debut: e.target.value })} required />
           </div>
           <div>
-            <label className="label" htmlFor="lieu">
-              Lieu
-            </label>
-            <input
-              id="lieu"
-              className="input"
-              placeholder="Salle B2, Discord, Google Meet..."
-              value={creneauForm.lieu}
-              onChange={(e) => setCreneauForm({ ...creneauForm, lieu: e.target.value })}
-            />
+            <label className="label" htmlFor="lieu">{offreCreneau?.mode === 'distance' ? 'Lien de réunion' : 'Lieu'}</label>
+            <input id="lieu" className="input" value={creneauForm.lieu} onChange={(e) => setCreneauForm({ ...creneauForm, lieu: e.target.value })} placeholder={offreCreneau?.mode === 'distance' ? 'https://meet.google.com/...' : 'Salle B2, bibliothèque...'} required />
+            <p className="mt-1 text-xs text-ink-500">Visible uniquement par les participants de la séance.</p>
           </div>
-          <p className="text-xs text-ink-400">
-            Astuce : ajoute plusieurs créneaux pour multiplier tes chances qu’une demande arrive.
-          </p>
         </form>
       </Modal>
     </div>

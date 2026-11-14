@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Alert, StatCard } from '../components/ui.jsx'
 import { apiGet, apiPut } from '../lib/api.js'
 import { useAuth } from '../lib/auth.jsx'
@@ -68,14 +69,14 @@ export default function Profil() {
       <header>
         <h1 className="text-2xl">Mon profil</h1>
         <p className="mt-1 text-sm text-ink-500">
-          {user?.email} · {user?.role === 'admin' ? 'Administrateur' : 'Etudiant'}
+          {user?.email} · {user?.role === 'admin' ? 'Administrateur' : 'Étudiant'}
         </p>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Solde" value={`${user?.solde_credits ?? 0} cr.`} tone="brand" />
-        <StatCard label="Offres" value={stats?.offres_publiees ?? 0} hint="Publiees" tone="accent" />
-        <StatCard label="Sessions" value={(stats?.sessions_donnees ?? 0) + (stats?.sessions_recues ?? 0)} hint="Données + reçues" tone="ink" />
+        <StatCard label="Crédits" value={`${user?.solde_credits ?? 0} dispo.`} hint={`${user?.credits_bloques ?? 0} bloqué(s)`} tone="brand" />
+        <StatCard label="Offres publiées" value={stats?.offres_publiees ?? 0} tone="accent" />
+        <StatCard label="Ma note" value={user?.note_moyenne != null ? `★ ${user.note_moyenne}` : '—'} hint={<Link to={`/etudiants/${user?.id}`} className="link">Voir mes évaluations ({user?.nb_evaluations ?? 0})</Link>} tone="ink" />
       </section>
 
       <section className="card p-6">
@@ -83,7 +84,7 @@ export default function Profil() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="prenom">
-                Prenom
+                Prénom
               </label>
               <input
                 id="prenom"

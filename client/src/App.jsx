@@ -11,6 +11,8 @@ import Reservations from './pages/Reservations.jsx'
 import Credits from './pages/Credits.jsx'
 import Profil from './pages/Profil.jsx'
 import Admin from './pages/Admin.jsx'
+import Planning from './pages/Planning.jsx'
+import Etudiant from './pages/Etudiant.jsx'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -82,6 +84,22 @@ export default function App() {
         element={
           <Protected>
             <Reservations />
+          </Protected>
+        }
+      />
+      <Route
+        path="/planning"
+        element={
+          <Protected>
+            <Planning />
+          </Protected>
+        }
+      />
+      <Route
+        path="/etudiants/:id"
+        element={
+          <Protected>
+            <Etudiant />
           </Protected>
         }
       />
