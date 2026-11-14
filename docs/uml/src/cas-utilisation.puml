@@ -1,0 +1,167 @@
+@startuml cas-utilisation
+' ============================================================
+' SkillSwap Campus - Diagramme de cas d'utilisation
+' DUT GI S3 - Module GL & Modelisation UML (M234) - EST Beni Mellal
+' ============================================================
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+skinparam actor {
+  BackgroundColor #FDF6E3
+  BorderColor #2F4858
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #EAF2F8
+  BorderColor #2F4858
+  FontSize 12
+  ArrowColor #2F4858
+}
+skinparam rectangle {
+  BackgroundColor #FBFCFD
+  BorderColor #9FB3C8
+  FontStyle bold
+}
+
+title Diagramme de cas d'utilisation : SkillSwap Campus
+
+actor "Étudiant" as ETU
+actor "Administrateur" as ADM
+actor "Utilisateur\n(acteur abstrait)" as UTIL
+
+UTIL <|-- ETU
+UTIL <|-- ADM
+
+rectangle "SkillSwap Campus : banque de temps entre étudiants" {
+
+  package "Espace étudiant" {
+    usecase "S'inscrire" as UC01
+    usecase "Se connecter" as UC02
+    usecase "Gérer son profil et ses compétences" as UC03
+    usecase "Publier une offre" as UC04
+    usecase "Gérer les créneaux d'une offre" as UC05
+    usecase "Archiver ou republier une offre" as UC06
+    usecase "Rechercher une offre" as UC07
+    usecase "Consulter les suggestions" as UC08
+    usecase "Demander une séance" as UC09
+    usecase "Accepter une demande" as UC10
+    usecase "Refuser une demande" as UC11
+    usecase "Retirer une demande en attente" as UC12
+    usecase "Annuler une séance acceptée" as UC13
+    usecase "Confirmer la réalisation" as UC14
+    usecase "Ouvrir un signalement" as UC15
+    usecase "Évaluer un participant" as UC16
+    usecase "Consulter planning et crédits" as UC17
+    usecase "Consulter ses notifications" as UC18
+
+    usecase "Vérifier le solde disponible" as IN01
+    usecase "Vérifier les règles de réservation" as IN02
+    usecase "Bloquer le coût en crédits" as IN03
+    usecase "Libérer les crédits bloqués" as IN04
+    usecase "Transférer les crédits bloqués" as IN05
+    usecase "Saisir un motif de refus" as IN06
+    usecase "Enregistrer les éléments du signalement" as IN07
+    usecase "Vérifier que la séance est réalisée" as IN08
+    usecase "Ajouter un créneau" as IN09
+    usecase "Consigner le mouvement de crédits" as IN10
+  }
+
+  package "Espace administrateur" {
+    usecase "Gérer les comptes étudiants" as UC20
+    usecase "Gérer les catégories" as UC21
+    usecase "Modérer une offre" as UC22
+    usecase "Régler un litige" as UC23
+    usecase "Consulter le tableau de bord" as UC24
+    usecase "Traiter une réservation d'un compte désactivé" as UC25
+
+    usecase "Désactiver un compte" as IN20
+    usecase "Masquer une offre et annuler les demandes" as IN21
+    usecase "Consulter les éléments des deux parties" as IN22
+    usecase "Motiver la décision" as IN23
+  }
+}
+
+' ---------------------- associations acteurs / cas ----------------------
+ETU --> UC01
+ETU --> UC02
+ETU --> UC03
+ETU --> UC04
+ETU --> UC05
+ETU --> UC06
+ETU --> UC07
+ETU --> UC08
+ETU --> UC09
+ETU --> UC10
+ETU --> UC11
+ETU --> UC12
+ETU --> UC13
+ETU --> UC14
+ETU --> UC15
+ETU --> UC16
+ETU --> UC17
+ETU --> UC18
+
+ADM --> UC20
+ADM --> UC21
+ADM --> UC22
+ADM --> UC23
+ADM --> UC24
+ADM --> UC25
+
+' ---------------------- relations include / extend ----------------------
+UC03 ..> UC02 : <<include>>
+UC04 ..> UC02 : <<include>>
+UC09 ..> UC02 : <<include>>
+UC09 ..> IN01 : <<include>>
+UC09 ..> IN02 : <<include>>
+UC10 ..> IN01 : <<include>>
+UC10 ..> IN02 : <<include>>
+UC10 ..> IN03 : <<include>>
+UC10 ..> IN10 : <<include>>
+UC10 ..> UC18 : <<include>>
+UC11 ..> IN06 : <<include>>
+UC13 ..> IN04 : <<include>>
+UC13 ..> IN10 : <<include>>
+UC14 ..> IN05 : <<include>>
+UC14 ..> IN10 : <<include>>
+UC15 ..> IN07 : <<include>>
+UC16 ..> IN08 : <<include>>
+UC16 ..> UC18 : <<include>>
+UC20 ..> IN20 : <<include>>
+UC22 ..> IN21 : <<include>>
+UC23 ..> IN22 : <<include>>
+UC23 ..> IN23 : <<include>>
+UC23 ..> IN05 : <<include>>
+UC23 ..> IN04 : <<include>>
+UC25 ..> IN04 : <<include>>
+
+UC04 <.. IN09 : <<extend>>
+UC15 <.. UC13 : <<extend>>
+UC01 <.. UC17 : <<extend>>
+
+note bottom of IN02
+  RG03 : ni sa propre offre, ni doublon sur un créneau
+  RG04 : offre publiée, intervenant actif, créneau futur libre
+  RG05 : solde vérifié à la demande puis à l'acceptation
+  RG07 : un seul créneau accepté par créneau
+  RG08 : aucun chevauchement de séances acceptées
+end note
+
+note bottom of UC23
+  RG13 : décision binaire, transfert intégral
+  ou restitution intégrale, jamais partielle
+  RG14 : un seul règlement, définitif
+end note
+
+note right of UC09
+  RG02 : 1 h = 1 crédit, 2 h = 2 crédits.
+  RG05 : une demande en attente
+  ne bloque aucun crédit.
+end note
+
+@enduml

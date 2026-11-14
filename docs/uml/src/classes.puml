@@ -1,0 +1,339 @@
+@startuml classes
+' ============================================================
+' SkillSwap Campus - Diagramme de classes
+' DUT GI S3 - Module GL & Modelisation UML (M234) - EST Beni Mellal
+' Modele issu du code : server/src/db.js et server/src/routes/*.js
+' ============================================================
+top to bottom direction
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam nodesep 16
+skinparam ranksep 26
+skinparam ArrowColor #2F4858
+skinparam ArrowFontSize 10
+skinparam classAttributeIconSize 0
+
+skinparam package {
+  BackgroundColor #FBFCFD
+  BorderColor #9FB3C8
+  FontStyle bold
+  FontSize 12
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #2F4858
+  HeaderBackgroundColor #EAF2F8
+  FontSize 11
+  FontStyle bold
+}
+skinparam enum {
+  BackgroundColor #FDF6E3
+  BorderColor #8C6D31
+  FontSize 10
+}
+skinparam note {
+  BackgroundColor #FFFBEA
+  BorderColor #C9A227
+  FontSize 9
+}
+
+title Diagramme de classes : SkillSwap Campus
+
+' ==================== Comptes et profil ====================
+package "Comptes et profil" {
+  class "Utilisateur" as UTIL {
+    - id : UUID
+    - email : String {unique}
+    - motDePasseHash : String
+    - role : RoleUtilisateur
+    - statut : StatutCompte
+    - dateCreation : DateTime
+    --
+    + sInscrire() : Utilisateur
+    + seConnecter(motDePasse) : bool
+    + seDeconnecter() : void
+    + modifierProfil(donnees) : void
+    + soldeDisponible() : int
+    + creditsBloques() : int
+    + noteMoyenne() : float
+  }
+
+  class "Profil" as PROFIL {
+    - prenom : String
+    - nom : String
+    - filiere : String
+    - bio : String
+    - competencesProposees : String[]
+    - competencesRecherchees : String[]
+  }
+
+  class "Notification" as NOTIF {
+    - id : UUID
+    - message : String
+    - lien : String
+    - lue : boolean
+    - date : DateTime
+  }
+}
+
+' ==================== Catalogue des offres ====================
+package "Catalogue des offres" {
+  class "Categorie" as CAT {
+    - id : UUID
+    - nom : String
+    - description : String
+    --
+    + creer(nom) : Categorie
+    + renommer(nom) : void
+    + supprimer() : void
+  }
+
+  class "Offre" as OFFRE {
+    - id : UUID
+    - titre : String
+    - competence : String
+    - description : String
+    - niveau : Niveau
+    - dureeHeures : int {1 ou 2}
+    - coutCredits : int
+    - mode : Mode
+    - statut : StatutOffre
+    - masquee : boolean
+    - motifMasquage : String
+    - dateCreation : DateTime
+    --
+    + publier() : void
+    + archiver() : void
+    + masquer(motif : String) : void
+    + ajouterCreneau(debut, lieuOuLien) : Creneau
+    + accepteDemande() : boolean
+  }
+
+  class "Creneau" as CREN {
+    - id : UUID
+    - debut : DateTime
+    - fin : DateTime
+    - lieuOuLien : String {participants}
+    - statut : StatutCreneau
+    --
+    + estFutur() : boolean
+    + chevauche(autre : Creneau) : boolean
+  }
+}
+
+' ==================== Seances, credits, evaluation ====================
+package "Seances et credits" {
+  class "Reservation" as RESA {
+    - id : UUID
+    - statut : StatutReservation
+    - coutCredits : int
+    - creditsBloques : int
+    - message : String
+    - motifRefus : String
+    - confirmeIntervenant : boolean
+    - confirmeBeneficiaire : boolean
+    - regle : boolean
+    - dateDemande : DateTime
+    --
+    + accepter() : void
+    + refuser(motif : String) : void
+    + retirer() : void
+    + annuler() : void
+    + confirmer(role : RoleUtilisateur) : void
+    + transferer() : void
+    + signaler() : Litige
+  }
+
+  class "MouvementCredit" as MOUV {
+    - id : UUID
+    - date : DateTime
+    - quantite : int
+    - type : TypeMouvement
+    - description : String
+  }
+
+  class "Evaluation" as EVAL {
+    - id : UUID
+    - note : int {1..5}
+    - commentaire : String
+    - date : DateTime
+  }
+}
+
+' ==================== Litiges ====================
+package "Litiges" {
+  class "Litige" as LITIGE {
+    - id : UUID
+    - type : TypeLitige
+    - statut : StatutLitige
+    - decision : Decision
+    - motifDecision : String
+    - dateOuverture : DateTime
+    - dateReglement : DateTime
+    --
+    + regler(decision : Decision, motif : String) : void
+  }
+
+  class "ElementLitige" as ELEM {
+    - id : UUID
+    - type : TypeLitige
+    - texte : String
+    - date : DateTime
+  }
+}
+
+' ==================== Services (couche application) ====================
+package "Services applicatifs" {
+  class "ServiceReservation" as SVC_RESA <<service>> {
+    + demander(offre, creneau) : Reservation
+    + accepter(resa) : void
+    + confirmer(resa, role) : void
+  }
+  class "ServiceCredits" as SVC_CRED <<service>> {
+    + bloquer(beneficiaire : Utilisateur, montant : int) : void
+    + liberer(beneficiaire : Utilisateur, montant : int) : void
+    + transferer(resa : Reservation) : void
+    + disponible(utilisateur : Utilisateur) : int
+  }
+}
+
+' ==================== Enumerations ====================
+package "Enumerations" {
+  enum "RoleUtilisateur" as E_ROLE {
+    etudiant
+    admin
+  }
+  enum "StatutCompte" as E_COMPTE {
+    actif
+    desactive
+  }
+  enum "Niveau" as E_NIVEAU {
+    debutant
+    intermediaire
+    avance
+  }
+  enum "Mode" as E_MODE {
+    presentiel
+    distance
+  }
+  enum "StatutOffre" as E_OFFRE {
+    brouillon
+    publiee
+    archivee
+  }
+  enum "StatutCreneau" as E_CREN {
+    libre
+    reserve
+    annule
+  }
+  enum "StatutReservation" as E_RESA {
+    en_attente
+    refusee
+    acceptee
+    annulee
+    realisee
+    en_litige
+  }
+  enum "TypeMouvement" as E_MOUV {
+    bienvenue
+    blocage
+    liberation
+    transfert_emis
+    transfert_recu
+  }
+  enum "TypeLitige" as E_TLIT {
+    absence
+    desaccord
+  }
+  enum "StatutLitige" as E_SLIT {
+    ouvert
+    regle
+  }
+  enum "Decision" as E_DECI {
+    transfert
+    restitution
+  }
+}
+
+' ==================== Associations ====================
+UTIL "1" *-- "1" PROFIL : possède >
+UTIL "1" -- "0..*" OFFRE : propose >
+UTIL "1" -- "0..*" RESA : bénéficiaire >
+UTIL "1" -- "0..*" MOUV : possède >
+UTIL "1" -- "0..*" NOTIF : reçoit >
+UTIL "1" -- "0..*" EVAL : est auteur >
+UTIL "1" -- "0..*" EVAL : est cible >
+UTIL "1" -- "0..*" ELEM : rédige >
+UTIL "1" -- "0..*" LITIGE : règle (admin) >
+
+CAT "1" -- "0..*" OFFRE : classe >
+OFFRE "1" *-- "0..*" CREN : propose >
+CREN "1" -- "0..*" RESA : donne lieu à >
+RESA "1" -- "0..*" MOUV : génère >
+RESA "1" -- "0..1" LITIGE : ouvre >
+RESA "1" -- "0..2" EVAL : autorise >
+
+LITIGE "1" *-- "1..*" ELEM : contient >
+
+SVC_RESA ..> RESA : <<use>>
+SVC_RESA ..> SVC_CRED : <<use>>
+SVC_CRED ..> MOUV : <<create>>
+SVC_CRED ..> UTIL : <<use>>
+
+UTIL ..> E_ROLE
+UTIL ..> E_COMPTE
+OFFRE ..> E_NIVEAU
+OFFRE ..> E_MODE
+OFFRE ..> E_OFFRE
+CREN ..> E_CREN
+RESA ..> E_RESA
+MOUV ..> E_MOUV
+LITIGE ..> E_TLIT
+LITIGE ..> E_SLIT
+LITIGE ..> E_DECI
+
+' ==================== Contraintes et regles metier ====================
+note right of UTIL
+  RG01 : courriel unique, 2 crédits
+  de bienvenue une seule fois
+end note
+
+note right of OFFRE
+  RG17 : archiver ou masquer annule les
+  demandes en attente et gèle la durée
+  dureeHeures = coutCredits (RG02)
+end note
+
+note bottom of CREN
+  RG19 : lieuOuLien visible des seuls
+  participants ; statut = reserve dès
+  qu'une réservation est acceptée
+end note
+
+note bottom of RESA
+  RG06 : l'acceptation bloque coutCredits
+  (une demande en attente ne bloque rien)
+  RG11 : 2 confirmations après la fin,
+  puis transfert unique des crédits bloqués
+end note
+
+note left of LITIGE
+  RG13 : décision motivée, transfert ou
+  restitution intégrale, jamais partielle
+  RG14 : un seul règlement, définitif
+end note
+
+note right of MOUV
+  RG16 : soldes disponible et bloqué
+  jamais négatifs, journal cohérent
+end note
+
+note bottom of SVC_CRED
+  blocage / libération / transfert
+  atomiques (RG06, RG10, RG11)
+end note
+
+@enduml
