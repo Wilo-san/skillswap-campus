@@ -168,7 +168,7 @@ createdb skillswap
 ### 3. Dépendances
 
 ```bash
-npm install
+npm run setup     # installe le backend et le frontend
 ```
 
 ### 4. Variables d'environnement
