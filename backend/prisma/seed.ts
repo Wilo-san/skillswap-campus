@@ -29,11 +29,6 @@ async function main() {
     create: { email: 'admin@skillswap.ma', passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD ?? 'Admin1234', 10), firstName: 'Admin', lastName: 'Campus', field: 'Administration', role: 'ADMIN', availableCredits: 0 },
   });
 
-  if ((await prisma.user.count({ where: { role: 'STUDENT' } })) > 0) {
-    console.log('Données de démonstration déjà présentes : rien à faire.');
-    return;
-  }
-
   const students = [
     { email: 'sara@skillswap.ma', firstName: 'Sara', lastName: 'El Idrissi', field: 'DUT Génie Informatique', credits: 2, offered: ['Python', 'JavaScript'], wanted: ['Anglais'] },
     { email: 'amine@skillswap.ma', firstName: 'Amine', lastName: 'Benali', field: 'DUT Génie Informatique', credits: 2, offered: ['Mathématiques'], wanted: ['Python'] },
@@ -42,6 +37,12 @@ async function main() {
   ];
   const ids: Record<string, string> = {};
   for (const s of students) {
+    // Seed idempotent : un compte déjà présent est conservé tel quel.
+    const existing = await prisma.user.findUnique({ where: { email: s.email } });
+    if (existing) {
+      ids[s.firstName] = existing.id;
+      continue;
+    }
     const u = await prisma.user.create({
       data: { email: s.email, passwordHash: pwd, firstName: s.firstName, lastName: s.lastName, field: s.field, availableCredits: s.credits },
     });
@@ -65,6 +66,8 @@ async function main() {
   ] as const;
 
   for (const o of offers) {
+    const already = await prisma.offer.findFirst({ where: { teacherId: ids[o.who], title: o.title } });
+    if (already) continue;
     const offer = await prisma.offer.create({
       data: {
         teacherId: ids[o.who], title: o.title, categoryId: await cat(o.category), skill: o.skill, description: o.desc,
@@ -77,7 +80,7 @@ async function main() {
       });
     }
   }
-  console.log('Données de démonstration créées.');
+  console.log('Données de démonstration prêtes.');
   console.log('  Admin    : admin@skillswap.ma / Admin1234');
   console.log('  Étudiant : sara@skillswap.ma / Demo1234 (idem amine, yasmine, omar)');
 }
