@@ -1,163 +1,303 @@
 # SkillSwap Campus
 
-Plateforme collaborative ou les etudiants echangent leurs competences academiques et techniques au sein du campus : on publie ce que l on sait faire, on reserve un creneau avec un autre etudiant, et on paie en credits. Une session donnee rapporte des credits, une session recue en coute.
+Plateforme web d'échange de compétences entre étudiants, fondée sur une **banque de temps** : on anime une séance pour gagner des crédits, on en réserve une pour en dépenser. Aucun argent ne circule.
 
-Application full-stack autonome : **React + Vite + Tailwind** pour l interface, **Node.js + Express** pour l API, stockage JSON persistant (aucune base externe a installer).
+Application **full-stack réellement opérationnelle** : interface React, API REST, base PostgreSQL persistante, authentification par jeton, autorisations par rôle et espace administrateur distinct.
+
+![Tableau de bord](docs/captures/02-tableau-de-bord.png)
+
+---
 
 ## Sommaire
 
-- [Fonctionnalites](#fonctionnalites)
-- [Demarrage rapide](#demarrage-rapide)
-- [Comptes de demonstration](#comptes-de-demonstration)
-- [Regles metier](#regles-metier)
+- [Fonctionnalités](#fonctionnalités)
+- [Règles de gestion](#règles-de-gestion)
+- [Technologies](#technologies)
 - [Architecture](#architecture)
-- [API](#api)
-- [Scripts](#scripts)
-- [Deploiement](#deploiement)
-- [Licence](#licence)
+- [Installation](#installation)
+- [Comptes de démonstration](#comptes-de-démonstration)
+- [Tests](#tests)
+- [API REST](#api-rest)
+- [Sécurité](#sécurité)
+- [Limitations connues](#limitations-connues)
 
-## Fonctionnalites
+---
 
-- **Authentification** : inscription et connexion par email + mot de passe (JWT), creation automatique du profil avec 5 credits de bienvenue.
-- **Profil etudiant** : prenom, nom, filiere, bio, competences proposees et recherchees, solde de credits.
-- **Marche des competences** : recherche plein texte, filtres par categorie, niveau, mode (presentiel / en ligne), filiere ; fiche detaillee avec intervenant et creneaux.
-- **Offres** : creation, modification, archivage, republication, suppression, ajout et retrait de creneaux.
-- **Reservations avec double confirmation** : le beneficiaire envoie une demande, l intervenant confirme, puis les credits sont transferes automatiquement et le creneau passe en reserve.
-- **Gestion des incidents** : refus motive, annulation avec remboursement, litige et resolution (remboursement du beneficiaire).
-- **Credits** : historique complet des mouvements (bonus, gain, depense, remboursement) et solde toujours coherent.
-- **Tableau de bord** : prochaines sessions, demandes en attente, statistiques personnelles.
-- **Administration** : vue d ensemble du campus, gestion des categories, moderation des offres, traitement des litiges.
-- **UI** : interface francaise, responsive (mobile et desktop), etats vides et messages d erreur explicites.
+## Fonctionnalités
 
-## Demarrage rapide
+### Espace étudiant
 
-Prerequis : **Node.js 18 ou superieur**.
+| Domaine | Détail |
+|---|---|
+| **Compte** | Inscription, connexion, mot de passe haché (bcrypt, coût 12), profil modifiable, changement de mot de passe. 2 crédits de bienvenue à l'inscription. |
+| **Profil** | Filière, présentation, compétences proposées et recherchées. Profil public consultable par les autres étudiants (note moyenne, évaluations, séances animées et suivies). |
+| **Offres** | Création, modification, publication, dépublication, archivage, suppression. Ajout et retrait de créneaux. Durée de 1 ou 2 heures. Mode présentiel ou à distance. |
+| **Catalogue** | Recherche plein texte, filtres par catégorie, niveau, mode et date. Seules les offres publiées, non masquées, avec au moins un créneau futur disponible apparaissent. |
+| **Suggestions** | Recommandations calculées à partir des compétences recherchées déclarées dans le profil (correspondance par compétence, titre ou catégorie). |
+| **Demandes** | Demande de séance, retrait, acceptation, refus motivé. Une demande acceptée bloque le coût sur le compte du bénéficiaire. |
+| **Planning** | Séances à venir regroupées par jour, séances à confirmer, séances réalisées. |
+| **Validation** | Double confirmation de réalisation après l'heure de fin. Le transfert des crédits n'a lieu qu'après les deux confirmations. |
+| **Signalements** | Ouverture d'un litige (absence, désaccord, confirmation manquante, autre), échange d'éléments entre les parties, décision de l'administrateur. |
+| **Évaluations** | Note de 1 à 5 et commentaire, une seule fois par participant, uniquement après une séance réalisée. |
+| **Crédits** | Solde disponible et bloqué, historique complet et paginé de tous les mouvements (bonus, blocage, libération, transfert, restitution). |
+| **Notifications** | Cloche avec compteur de non-lues, marquage individuel ou global, rafraîchissement périodique. |
 
-```bash
-git clone <url-du-depot>
-cd skillswap-campus
-npm install        # installe le serveur et le client (workspaces npm)
-npm run seed       # cree les donnees de demonstration
-npm run dev        # API sur :3001 + interface sur :5173
-```
+### Espace administrateur (indépendant)
 
-Ouvrir <http://localhost:5173>. Connectez-vous avec un compte de demonstration ci-dessous.
+| Domaine | Détail |
+|---|---|
+| **Tableau de bord** | Comptes actifs, offres publiées, séances acceptées et réalisées, crédits transférés, crédits bloqués, litiges à traiter. |
+| **Comptes** | Recherche, activation et désactivation, attribution ou retrait du rôle administrateur. Protection du dernier administrateur actif. |
+| **Catégories** | Création, renommage, activation et désactivation, suppression (refusée si des offres l'utilisent). |
+| **Modération** | Masquage motivé d'une offre (notification de l'intervenant, annulation des demandes en attente) et rétablissement. |
+| **Litiges** | Consultation des éléments des deux parties, décision motivée : transfert intégral à l'intervenant ou restitution intégrale au bénéficiaire. Règlement unique. |
+| **Annulation** | Annulation administrative d'une séance acceptée avec libération intégrale des crédits bloqués. |
+| **Journal d'audit** | Traçabilité des actions d'administration. |
 
-Pour une execution en un seul processus (build de l interface puis serveur) :
+### Aperçus
 
-```bash
-npm run build
-npm start          # interface + API sur http://localhost:3001
-```
+| Catalogue | Crédits | Administration |
+|---|---|---|
+| ![Catalogue](docs/captures/03-catalogue.png) | ![Crédits](docs/captures/04-credits.png) | ![Admin](docs/captures/05-admin.png) |
 
-## Comptes de demonstration
+---
 
-| Compte | Role | Mot de passe |
-| --- | --- | --- |
-| `admin@campus.ma` | Administrateur (Walid Badi) | `campus123` |
-| `salima@campus.ma` | Etudiante · SQL | `campus123` |
-| `younes@campus.ma` | Etudiant · React | `campus123` |
-| `kaouthar@campus.ma` | Etudiante · pandas | `campus123` |
-| `hajar@campus.ma` | Etudiante · Arduino | `campus123` |
+## Règles de gestion
 
-Le premier compte cree sur une base vide recoit automatiquement le role administrateur.
+Les règles sont appliquées dans le service métier (`backend/src/services/`), **et** garanties au niveau de la base par des contraintes SQL (défense en profondeur).
 
-## Regles metier
+| # | Règle | Mise en œuvre |
+|---|---|---|
+| RG01 | Un compte par adresse électronique ; 2 crédits de bienvenue une seule fois | Index unique sur `User.email`, index unique partiel sur le mouvement `WELCOME_BONUS` |
+| RG02 | 1 crédit = 1 heure ; durée d'une offre limitée à 1 ou 2 heures | `CHECK` sur `Offer.durationHours` et `Booking.cost` |
+| RG03 | Pas de réservation de sa propre offre ; une seule demande active par étudiant et par créneau | `CHECK` `teacherId <> learnerId` + index unique partiel sur les statuts `PENDING`/`ACCEPTED` |
+| RG04 | Seules les offres publiées et non masquées sont réservables | Filtrage du catalogue et contrôle à la demande |
+| RG05 | Le solde est vérifié à la demande **et de nouveau** à l'acceptation | Lecture verrouillée du compte dans la transaction |
+| RG06 | L'acceptation bloque le coût sur le compte du bénéficiaire | `BLOCK` : disponible −coût, bloqué +coût |
+| RG07 | Un créneau n'accueille qu'une seule séance acceptée ; les autres demandes sont refusées avec motif | Verrou `FOR UPDATE` sur le créneau + index unique partiel sur `ACCEPTED`/`DISPUTED` |
+| RG08 | Aucun chevauchement d'horaires pour l'intervenant ni le bénéficiaire ; séances consécutives autorisées | Requête de chevauchement sur les séances acceptées (`startsAt < fin AND endsAt > début`) |
+| RG09 | Le bénéficiaire retire une demande en attente ; l'intervenant refuse avec un motif obligatoire | Transitions d'état contrôlées |
+| RG10 | Annulation possible seulement avant le début ; les crédits sont alors libérés et le créneau redevient réservable | `RELEASE` : bloqué −coût, disponible +coût |
+| RG11 | Double confirmation après l'heure de fin, une seule par participant ; aucun transfert si un litige est ouvert | Table `Confirmation` avec clé unique `(bookingId, userId)` |
+| RG12 | En cas de confirmation manquante ou de désaccord, les crédits restent bloqués | Aucun transfert automatique |
+| RG13 | L'administrateur décide : transfert intégral ou restitution intégrale, décision motivée | Service `resolveDispute` |
+| RG14 | Règlement unique : un seul transfert et une seule restitution par réservation | Index uniques partiels sur `TRANSFER_OUT`, `TRANSFER_IN`, `REFUND` |
+| RG15 | Évaluation de 1 à 5, une seule par participant, uniquement après une séance réalisée | `CHECK` sur la note, clé unique `(bookingId, reviewerId)`, interdiction de s'auto-évaluer |
+| RG16 | Les soldes ne sont jamais négatifs | `CHECK` sur `availableCredits` et `blockedCredits`, opérations en transaction |
+| RG17 | Archiver ou masquer une offre annule les demandes en attente ; les séances acceptées suivent leur cours | Annulation ciblée des `PENDING` uniquement |
+| RG18 | Désactiver un compte annule ses demandes en attente et dépublie ses offres ; aucun crédit n'est perdu | Annulation administrative distincte pour les séances acceptées |
+| RG19 | Le lieu précis et le lien de réunion ne sont visibles que des participants, et seulement après acceptation | Sérialiseurs `viewOffer` / `viewBooking` / `viewDispute` |
 
-1. Un nouvel inscrit recoit **5 credits** (mouvement `bonus`).
-2. Une offre appartient a son intervenant qui seul peut la modifier, l archiver ou gerer ses creneaux.
-3. Impossible de reserver sa propre offre, un creneau deja pris ou un creneau passe.
-4. Une reservation exige un solde suffisant ; le debit n a lieu qu apres confirmation.
-5. La confirmation de l intervenant finalise la session : debit du beneficiaire, credit de l intervenant, creneau `reserve`.
-6. Une annulation ou un refus sur une session confirmee genere des mouvements `remboursement` symetriques.
-7. Un litige se declare sur une session confirmee avec un motif d au moins 10 caracteres ; sa resolution peut rembourser le beneficiaire.
+**Concurrence.** Toutes les opérations de crédits s'exécutent dans une transaction PostgreSQL avec verrouillage `SELECT … FOR UPDATE`. L'ordre de verrouillage est global et constant (**créneau → réservation → comptes triés par identifiant**) afin d'éviter les interblocages. Les doubles clics et les requêtes simultanées sont couverts par des tests dédiés.
+
+---
+
+## Technologies
+
+**Frontend** — React 19, TypeScript, Vite, Tailwind CSS, React Router, Lucide (icônes), typographies Inter et Plus Jakarta Sans.
+
+**Backend** — Node.js, Express 5, TypeScript, API REST, Zod (validation), JWT, bcrypt, Helmet, CORS, limitation de débit.
+
+**Base de données** — PostgreSQL 16, Prisma ORM 7 (migrations versionnées, contraintes et index partiels en SQL).
+
+**Tests** — Vitest + Supertest, exécutés contre une instance PostgreSQL réelle.
+
+---
 
 ## Architecture
 
 ```
 skillswap-campus/
-├── package.json           # workspaces + scripts racine
-├── server/
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma            # modèle de données
+│   │   ├── migrations/              # migrations SQL (contraintes métier incluses)
+│   │   └── seed.ts                  # données de démonstration
 │   ├── src/
-│   │   ├── index.js       # application Express, service de l interface compilee
-│   │   ├── db.js          # persistance JSON, soldes et mouvements de credits
-│   │   ├── auth.js        # hash bcrypt, JWT, middlewares
-│   │   ├── seed.js        # donnees de demonstration
-│   │   └── routes/
-│   │       ├── auth.js         # inscription, connexion, profil
-│   │       ├── offres.js       # offres, creneaux, categories, credits
-│   │       ├── reservations.js # cycle de vie des reservations
-│   │       └── meta.js         # tableau de bord et synthese admin
-│   └── data/db.json       # base JSON generee (ignoree par git)
-└── client/
-    ├── index.html
-    ├── src/
-    │   ├── App.jsx        # routes protegees
-    │   ├── lib/           # client HTTP, contexte d authentification, formats
-    │   ├── components/    # layout, composants UI reutilisables
-    │   └── pages/         # connexion, dashboard, marche, offre, offres, reservations, credits, profil, admin
-    └── vite.config.js     # proxy /api vers le serveur en developpement
+│   │   ├── app.ts                   # application Express
+│   │   ├── server.ts                # point d'entrée
+│   │   ├── lib/                     # configuration, Prisma, erreurs, validation
+│   │   ├── middleware/              # authentification, rôles, gestion d'erreurs
+│   │   ├── services/                # règles métier (crédits, réservations, notifications)
+│   │   └── routes/                  # endpoints REST
+│   └── tests/                       # 71 tests d'intégration
+├── frontend/
+│   └── src/
+│       ├── components/              # bibliothèque UI, mise en page, cartes
+│       ├── lib/                     # client API, authentification, formatage, hooks
+│       └── pages/                   # pages étudiant et pages admin
+├── docs/captures/                   # captures d'écran
+├── docker-compose.yml               # PostgreSQL local
+├── .env.example
+└── package.json                     # scripts racine
 ```
 
-## API
+Le dossier `database/` du cahier des charges est ici représenté par `backend/prisma/` (schéma, migrations et jeu de données), conformément à l'organisation d'un projet Prisma.
 
-Toutes les routes sont prefixees par `/api`. Les routes protegees attendent l en-tete `Authorization: Bearer <token>`.
+---
 
-| Methode | Route | Description |
-| --- | --- | --- |
-| `POST` | `/auth/register` | Creer un compte (email, mot de passe, prenom, nom, filiere) |
-| `POST` | `/auth/login` | Connexion, retourne un token JWT |
-| `GET` | `/auth/me` | Profil de l utilisateur connecte |
-| `PUT` | `/auth/profil` | Mettre a jour le profil et les competences |
-| `GET` | `/categories` | Categories et nombre d offres publiees |
-| `POST` | `/categories` | Creer une categorie (admin) |
-| `DELETE` | `/categories/:id` | Supprimer une categorie inutilisee (admin) |
-| `GET` | `/offres` | Liste filtrable : `q`, `categorie`, `niveau`, `mode`, `filiere`, `statut`, `intervenant=me` |
-| `GET` | `/offres/:id` | Detail d une offre et de ses creneaux |
-| `POST` | `/offres` | Publier une offre |
-| `PUT` | `/offres/:id` | Modifier une offre ou changer son statut |
-| `DELETE` | `/offres/:id` | Supprimer une offre sans reservation active |
-| `POST` | `/offres/:id/creneaux` | Ajouter un creneau (debut, fin, lieu) |
-| `DELETE` | `/creneaux/:id` | Retirer un creneau libre |
-| `POST` | `/reservations` | Demander un creneau |
-| `GET` | `/reservations?role=tous\|recues\|envoyees` | Reservations de l utilisateur |
-| `POST` | `/reservations/:id/confirmer` | Confirmation par un participant |
-| `POST` | `/reservations/:id/annuler` | Annulation par le beneficiaire |
-| `POST` | `/reservations/:id/refuser` | Refus motive par l intervenant |
-| `POST` | `/reservations/:id/litige` | Signaler un probleme |
-| `POST` | `/reservations/:id/resoudre` | Resoudre un litige (intervenant ou admin) |
-| `GET` | `/credits` | Solde et historique des mouvements |
-| `GET` | `/dashboard` | Prochaines sessions, demandes et statistiques |
-| `GET` | `/admin/synthese` | Indicateurs globaux (admin) |
-| `GET` | `/admin/offres` | Toutes les offres (admin) |
-| `GET` | `/admin/litiges` | Litiges en cours et resolus (admin) |
-| `GET` | `/health` | Etat du service |
+## Installation
 
-## Scripts
+### Prérequis
 
-| Commande | Effet |
-| --- | --- |
-| `npm run dev` | API (watch) + interface Vite avec proxy |
-| `npm run build` | Build de production de l interface |
-| `npm start` | Serveur API servant l interface compilee |
-| `npm run seed` | Donnees de demonstration si la base est vide |
-| `npm run reset` | Reinitialise completement la base de demonstration |
+- Node.js 20 ou supérieur
+- PostgreSQL 14 ou supérieur (ou Docker)
 
-## Deploiement
-
-1. `npm install && npm run build && npm run reset`
-2. Definir les variables d environnement :
+### 1. Cloner le dépôt
 
 ```bash
-PORT=3001
-JWT_SECRET=<chaine-aleatoire-longue>
-DATA_DIR=/chemin/vers/un/volume/persistant   # optionnel
+git clone https://github.com/Wilo-san/skillswap-campus.git
+cd skillswap-campus
+git checkout v2-typescript-postgres   # branche de cette version
 ```
 
-3. `npm start` puis exposer le port 3001 (Railway, Render, Fly.io, un VPS derriere Nginx...).
+### 2. Base de données
 
-Le dossier `DATA_DIR` doit etre persistant : la base JSON y est ecrite de maniere atomique (`db.json`).
+Avec Docker :
 
-## Licence
+```bash
+docker compose up -d db
+```
 
-MIT — voir [LICENSE](LICENSE).
+Ou avec une instance PostgreSQL existante :
+
+```bash
+createdb skillswap
+```
+
+### 3. Dépendances
+
+```bash
+npm run setup     # installe le backend et le frontend
+```
+
+### 4. Variables d'environnement
+
+```bash
+cp .env.example backend/.env
+```
+
+Renseignez au minimum `DATABASE_URL` et `JWT_SECRET` dans `backend/.env`.
+
+### 5. Migrations et données de démonstration
+
+```bash
+npm run db:migrate     # applique les migrations
+npm run db:seed        # crée les comptes et les offres de démonstration
+```
+
+### 6. Lancement
+
+Deux terminaux :
+
+```bash
+npm run dev:api        # API sur http://localhost:4000
+npm run dev:web        # interface sur http://localhost:5173
+```
+
+Le frontend redirige automatiquement les appels `/api` vers le backend.
+
+### Production
+
+```bash
+npm run build
+npm run start:api      # sert l'API compilée
+```
+
+Pour servir l'interface, publiez le contenu de `frontend/dist` derrière un serveur web et faites pointer `/api` vers le backend.
+
+---
+
+## Comptes de démonstration
+
+Créés par `npm run db:seed`.
+
+| Rôle | Adresse électronique | Mot de passe |
+|---|---|---|
+| Administrateur | `admin@skillswap.ma` | `Admin1234` |
+| Étudiante | `sara@skillswap.ma` | `Demo1234` |
+| Étudiant | `amine@skillswap.ma` | `Demo1234` |
+| Étudiante | `yasmine@skillswap.ma` | `Demo1234` |
+| Étudiant | `omar@skillswap.ma` | `Demo1234` |
+
+> Ces identifiants ne concernent que les données de démonstration locale. Aucun mot de passe n'est stocké en clair : le script de seed les hache avec bcrypt.
+
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+La suite couvre 71 scénarios d'intégration exécutés contre un vrai PostgreSQL (base `skillswap_test`) :
+
+- inscription, unicité du courriel, hachage, inscription simultanée, compte désactivé ;
+- protection des routes privées et des routes d'administration ;
+- publication d'offres, cohérence des créneaux, catalogue et suggestions, RG19 ;
+- demande, acceptation, refus, retrait, annulation, double clic, **acceptations simultanées** ;
+- conflits de planning, séances consécutives ;
+- double confirmation, **confirmations simultanées**, transfert unique ;
+- litiges, décisions concurrentes de deux administrateurs, restitution ;
+- évaluations, portefeuille, notifications, modération, désactivation de comptes.
+
+Pour pointer vers une autre base de test :
+
+```bash
+TEST_DATABASE_URL="postgresql://user:pass@host:5432/skillswap_test" npm test
+```
+
+---
+
+## API REST
+
+Toutes les routes sont préfixées par `/api`. Les routes privées attendent l'en-tête `Authorization: Bearer <jeton>`.
+
+| Méthode | Route | Rôle |
+|---|---|---|
+| `POST` | `/auth/register` · `/auth/login` | public |
+| `GET` `PUT` | `/auth/me` | étudiant connecté |
+| `PUT` | `/auth/password` | étudiant connecté |
+| `GET` | `/categories` | connecté |
+| `POST` `PUT` `DELETE` | `/categories/:id` | administrateur |
+| `GET` | `/offers` · `/offers/suggestions` · `/offers/mine` · `/offers/:id` | connecté |
+| `POST` `PUT` `DELETE` | `/offers` · `/offers/:id` | propriétaire |
+| `POST` | `/offers/:id/publish` · `/unpublish` · `/archive` | propriétaire |
+| `POST` `DELETE` | `/offers/:id/slots` · `/offers/:id/slots/:slotId` | propriétaire |
+| `GET` | `/bookings?box=sent\|received\|all` · `/bookings/planning` · `/bookings/:id` | participant |
+| `POST` | `/bookings` | bénéficiaire |
+| `POST` | `/bookings/:id/withdraw` · `/accept` · `/refuse` · `/cancel` · `/confirm` | participant concerné |
+| `POST` | `/bookings/:id/dispute` · `/bookings/:id/review` | participant concerné |
+| `GET` | `/wallet` | connecté |
+| `GET` | `/notifications` · `POST /notifications/read-all` · `POST /notifications/:id/read` | connecté |
+| `GET` | `/profiles/:id` | connecté |
+| `GET` | `/disputes` · `/disputes/:id` · `POST /disputes/:id/comments` | parties et administrateur |
+| `GET` | `/admin/stats` · `/admin/users` · `/admin/offers` · `/admin/disputes` · `/admin/bookings` · `/admin/audit` | administrateur |
+| `POST` | `/admin/users/:id/active` · `/admin/users/:id/role` | administrateur |
+| `POST` | `/admin/offers/:id/hide` · `/unhide` | administrateur |
+| `POST` | `/admin/disputes/:id/resolve` · `/admin/bookings/:id/cancel` | administrateur |
+
+Les erreurs renvoient un objet `{ error: { code, message, details? } }` avec un code HTTP explicite (400 validation, 401 non authentifié, 403 interdit, 404 introuvable, 409 conflit métier).
+
+---
+
+## Sécurité
+
+- Mots de passe hachés avec bcrypt (coût 12), jamais renvoyés par l'API.
+- Jeton JWT signé côté serveur, expiration configurable, **état du compte revérifié à chaque requête** : un compte désactivé perd immédiatement l'accès.
+- Autorisations par rôle appliquées par middleware, espace administrateur inaccessible aux étudiants.
+- Validation systématique des entrées avec Zod, côté serveur.
+- Requêtes paramétrées via Prisma (pas de concaténation SQL).
+- En-têtes de sécurité Helmet, CORS restreint, limitation de débit sur l'authentification.
+- Message identique pour un courriel inconnu et un mot de passe erroné (pas d'énumération de comptes).
+- Aucun secret versionné : `.env` est ignoré par Git, seul `.env.example` est publié.
+
+---
+
+## Limitations connues
+
+- **Pas de réinitialisation de mot de passe par courriel** : aucun service d'envoi n'étant configuré, un mot de passe oublié doit être réinitialisé par un administrateur en base.
+- **Pas d'envoi de notifications hors application** (courriel ou notification push) : les notifications sont internes et consultables depuis l'interface.
+- **Pas de téléversement de photo de profil** : les avatars sont générés à partir des initiales.
+- Les dates sont affichées en heure de Casablanca ; le stockage est en UTC.
+- Le jeu de démonstration crée des séances dans les jours qui suivent le seed : passez la commande `npm run db:seed` sur une base fraîche pour retrouver des créneaux futurs.

@@ -1,22 +1,42 @@
+# Dépendances
 node_modules/
-dist/
-build/
+.pnp/
+.pnp.js
 
-# base de donnees locale generee par le seed
-server/data/
-*.tmp
-
-# environnement
+# Secrets et configuration locale
 .env
 .env.local
 .env.*.local
+!.env.example
 
-# logs et divers
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Base de données locale
+.pgdata/
+pgdata/
+*.sqlite
+*.db
+
+# Tests et couverture
+coverage/
+.nyc_output/
+
+# Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.DS_Store
-.idea/
+logs/
+
+# Éditeurs et système
 .vscode/
-coverage/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Divers
+.cache/
+.temp/
+tmp/

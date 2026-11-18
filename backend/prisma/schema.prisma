@@ -1,0 +1,313 @@
+// SkillSwap Campus - schéma de données (PostgreSQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum SkillKind {
+  OFFERED
+  WANTED
+}
+
+enum OfferStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OfferLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum DeliveryMode {
+  ONSITE
+  REMOTE
+}
+
+enum SlotStatus {
+  AVAILABLE
+  ASSIGNED
+}
+
+// RG09
+enum BookingStatus {
+  PENDING
+  REFUSED
+  ACCEPTED
+  CANCELLED
+  COMPLETED
+  DISPUTED
+}
+
+enum LedgerType {
+  WELCOME_BONUS
+  BLOCK
+  RELEASE
+  TRANSFER_OUT
+  TRANSFER_IN
+  REFUND
+}
+
+enum DisputeReason {
+  ABSENCE
+  DISAGREEMENT
+  MISSING_CONFIRMATION
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+}
+
+enum DisputeDecision {
+  TRANSFER
+  REFUND
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  field         String // filière
+  bio           String    @default("")
+  role          Role      @default(STUDENT)
+  active        Boolean   @default(true)
+  // Portefeuille (RG16 : jamais négatif, garanti aussi par CHECK SQL)
+  availableCredits Int    @default(2)
+  blockedCredits   Int    @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  skills         UserSkill[]
+  offers         Offer[]
+  bookingsAsLearner Booking[]  @relation("Learner")
+  bookingsAsTeacher Booking[]  @relation("Teacher")
+  ledger         LedgerEntry[]
+  notifications  Notification[]
+  reviewsGiven   Review[]      @relation("Reviewer")
+  reviewsReceived Review[]     @relation("Reviewee")
+  disputesOpened Dispute[]     @relation("DisputeOpener")
+  confirmations  Confirmation[]
+  auditLogs      AuditLog[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  offers    Offer[]
+  skills    UserSkill[]
+}
+
+// Compétences proposées / recherchées d'un profil
+model UserSkill {
+  id         String    @id @default(uuid())
+  userId     String
+  kind       SkillKind
+  name       String
+  categoryId String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, kind, name])
+  @@index([userId, kind])
+}
+
+model Offer {
+  id          String       @id @default(uuid())
+  teacherId   String
+  title       String
+  categoryId  String
+  skill       String
+  description String
+  level       OfferLevel
+  durationHours Int // 1 ou 2 (RG02), coût = durée
+  mode        DeliveryMode
+  status      OfferStatus  @default(DRAFT)
+  hidden      Boolean      @default(false) // masquée par l'admin (RG17)
+  hiddenReason String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  teacher  User     @relation(fields: [teacherId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+  slots    Slot[]
+  bookings Booking[]
+
+  @@index([status, hidden])
+  @@index([teacherId])
+}
+
+model Slot {
+  id        String     @id @default(uuid())
+  offerId   String
+  startsAt  DateTime
+  endsAt    DateTime
+  // Lieu précis ou lien privé : visible uniquement des participants (RG19)
+  location  String?
+  meetingUrl String?
+  status    SlotStatus @default(AVAILABLE)
+  createdAt DateTime   @default(now())
+
+  offer    Offer     @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([offerId, startsAt])
+}
+
+model Booking {
+  id         String        @id @default(uuid())
+  offerId    String
+  slotId     String
+  teacherId  String
+  learnerId  String
+  cost       Int // figé à la demande (RG02)
+  startsAt   DateTime // copie du créneau pour les contrôles de chevauchement (RG08)
+  endsAt     DateTime
+  status     BookingStatus @default(PENDING)
+  refusalReason String?
+  cancelReason  String?
+  blockedAmount Int        @default(0)
+  settledAt  DateTime? // RG14 : règlement unique
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  offer    Offer   @relation(fields: [offerId], references: [id])
+  slot     Slot    @relation(fields: [slotId], references: [id])
+  teacher  User    @relation("Teacher", fields: [teacherId], references: [id])
+  learner  User    @relation("Learner", fields: [learnerId], references: [id])
+  confirmations Confirmation[]
+  ledger   LedgerEntry[]
+  reviews  Review[]
+  disputes Dispute[]
+
+  // RG03 : une seule demande active (PENDING/ACCEPTED) par étudiant et créneau
+  // -> index unique partiel créé dans la migration SQL
+  @@index([slotId, status])
+  @@index([teacherId, status])
+  @@index([learnerId, status])
+}
+
+model Confirmation {
+  id        String   @id @default(uuid())
+  bookingId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  // RG11 : une seule confirmation par participant
+  @@unique([bookingId, userId])
+}
+
+model LedgerEntry {
+  id        String     @id @default(uuid())
+  userId    String
+  bookingId String?
+  type      LedgerType
+  amount    Int // toujours positif, le sens est porté par le type
+  availableAfter Int
+  blockedAfter   Int
+  note      String?
+  createdAt DateTime   @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([bookingId])
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  bookingId  String
+  reviewerId String
+  revieweeId String
+  rating     Int
+  comment    String   @default("")
+  createdAt  DateTime @default(now())
+
+  booking  Booking @relation(fields: [bookingId], references: [id])
+  reviewer User    @relation("Reviewer", fields: [reviewerId], references: [id])
+  reviewee User    @relation("Reviewee", fields: [revieweeId], references: [id])
+
+  // RG15 : une seule évaluation par participant et par réservation
+  @@unique([bookingId, reviewerId])
+  @@index([revieweeId])
+}
+
+model Dispute {
+  id         String          @id @default(uuid())
+  bookingId  String
+  openedById String
+  reason     DisputeReason
+  description String
+  status     DisputeStatus   @default(OPEN)
+  decision   DisputeDecision?
+  decisionNote String?
+  decidedById String?
+  decidedAt  DateTime?
+  createdAt  DateTime        @default(now())
+
+  booking  Booking @relation(fields: [bookingId], references: [id])
+  openedBy User    @relation("DisputeOpener", fields: [openedById], references: [id])
+  comments DisputeComment[]
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+// Éléments fournis par chaque partie (RG13, RG19)
+model DisputeComment {
+  id        String   @id @default(uuid())
+  disputeId String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  target    String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([createdAt])
+}
